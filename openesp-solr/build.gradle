@@ -1,4 +1,16 @@
 // Build file for Solr as part of OpenESP
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.ajoberstar:gradle-git:0.4.0'
+    }
+}
+
+import org.ajoberstar.gradle.git.tasks.*
+
 def fullName = "solr-${solrVersion}"
 def binUrl = "http://apache.uib.no/lucene/solr/$solrVersion/${fullName}.zip"
 def buildDir = 'build'
@@ -9,89 +21,129 @@ def unzippedPath = "${buildDir}/${fullName}"
 def warPath = "${unzippedPath}/dist/${warName}"
 def deployDir = "${buildDir}/openesp"
 
-defaultTasks 'organizeForOpenESP' 
+defaultTasks 'env' //'organizeForOpenESP'
 
 task clean {
-	doLast {
-		delete buildDir
-	} 
+        doLast {
+                delete buildDir
+        } 
 }
 
 task init {
-	outputs.dir buildDir
-	doLast {
-		mkdir buildDir
-	}
+        outputs.dir buildDir
+        doLast {
+                mkdir buildDir
+        }
 }
 
 task getSolr (dependsOn: 'init') {
-	outputs.file "${zipPath}"
-	doLast {
-    println "Downloading Solr ${solrVersion} into ${tmpDir}"
-		ant {
-			get src:binUrl,
-			dest:tmpDir, verbose:"false"
-		}
-	}
+        outputs.file "${zipPath}"
+        doLast {
+            println "Downloading Solr ${solrVersion} into ${tmpDir}"
+            ant {
+                    get src:binUrl,
+                    dest:tmpDir, verbose:"false"
+                }
+        }
 }
 
 task unpackSolr (dependsOn: 'getSolr') {
-	outputs.dir "${unzippedPath}"
-	doLast {
-    println "Unpacking Solr into ${buildDir}"
-		copy {
-			from zipTree(zipPath)
-			into "${buildDir}"
-		}
-	}
+        outputs.dir "${unzippedPath}"
+        doLast {
+                println "Unpacking Solr into ${buildDir}"
+                copy {
+                        from zipTree(zipPath)
+                        into "${buildDir}"
+                }
+        }
 }
 
+
 task organizeForOpenESP (dependsOn: 'unpackSolr') {
-	outputs.file "${deployDir}/tomcat/conf/Catalina/localhost/solr.xml"
-	doLast {
-		copy {
-			from warPath
-			into "${deployDir}/webapps"
-			rename warName, 'solr.war'
-		}
-		copy {
-			from 'solr-tomcat-context.xml'
-			into "${deployDir}/tomcat/conf/Catalina/localhost"
-			rename 'solr-tomcat-context.xml', "solr.xml"
-		}
-		copy {
-			from "${unzippedPath}/example/solr"
-			into "${deployDir}/conf/solr"
-		}
-		copy {
-			from ("${unzippedPath}/dist") {
-			  include 'solr-langid-*'
-			  include 'solr-velocity-*'
-			  include 'solr-dataimport*'
-			  include 'solr-cell-*'
-			}
-			into "${deployDir}/lib/solr"
-		}
-		copy {
-			from "${unzippedPath}/contrib/langid/lib"
-			into "${deployDir}/lib/solr"
-		}
-		copy {
-			from "${unzippedPath}/contrib/velocity/lib"
-			into "${deployDir}/lib/solr"
-		}
-		copy {
-			from "${unzippedPath}/contrib/dataimporthandler/lib"
-			into "${deployDir}/lib/solr"
-		}
-		copy {
-			from "${unzippedPath}/contrib/extraction/lib"
-			into "${deployDir}/lib/solr"
-		}
-		copy {
-			from "${unzippedPath}/example/exampledocs/post.jar"
-			into "${deployDir}/bin"
-		}
-		new File("${deployDir}/logs/solr").mkdirs()
-	}
+        outputs.file "${deployDir}/tomcat/conf/Catalina/localhost/solr.xml"
+        doLast {
+                copy {
+                        from warPath
+                        into "${deployDir}/webapps"
+                        rename warName, 'solr.war'
+                }
+                copy {
+                        from 'solr-tomcat-context.xml'
+                        into "${deployDir}/tomcat/conf/Catalina/localhost"
+                        rename 'solr-tomcat-context.xml', "solr.xml"
+                }
+                copy {
+                        from "${unzippedPath}/example/solr"
+                        into "${deployDir}/conf/solr"
+                }
+                copy {
+                        from ("${unzippedPath}/dist") {
+                          include 'solr-langid-*'
+                          include 'solr-velocity-*'
+                          include 'solr-dataimport*'
+                          include 'solr-cell-*'
+                        }
+                        into "${deployDir}/lib/solr"
+                }
+                copy {
+                        from "${unzippedPath}/contrib/langid/lib"
+                        into "${deployDir}/lib/solr"
+                }
+                copy {
+                        from "${unzippedPath}/contrib/velocity/lib"
+                        into "${deployDir}/lib/solr"
+                }
+                copy {
+                        from "${unzippedPath}/contrib/dataimporthandler/lib"
+                        into "${deployDir}/lib/solr"
+                }
+                copy {
+                        from "${unzippedPath}/contrib/extraction/lib"
+                        into "${deployDir}/lib/solr"
+                }
+                copy {
+                        from "${unzippedPath}/example/exampledocs/post.jar"
+                        into "${deployDir}/bin"
+                }
+                new File("${deployDir}/logs/solr").mkdirs()
+        }
 }
+
+
+
+// Tasks for building from source
+
+// Clone Git repo
+task cloneSolrGitRepo (type: GitClone) {
+      enabled = !file("${unzippedPath}").exists()  
+      uri = 'https://github.com/apache/lucene-solr.git' 
+      destinationPath "${unzippedPath}"
+      bare = false
+}
+
+task buildSolr (type: Exec, dependsOn: 'cloneSolrGitRepo') << {
+    println "Building Solr sources. This may take a while..."
+    doLast {
+        workingDir = ${unzippedPath}
+        commandLine = ['ant', '-quiet', 'clean']
+    }
+}
+
+
+// Test whether we build from source of use a binary distribution
+task env {
+    if ( fromSource ==  "true" ) {
+        println "We will build Solr from source"
+            if (file("${unzippedPath}").exists() == true) {
+                delete "${unzippedPath}"
+            }
+            env.dependsOn buildSolr
+
+    }
+    else {
+        println "We will use a binary Solr distribution"
+    }   
+}
+
+
+

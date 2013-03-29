@@ -22,12 +22,7 @@ def tomcatName = "apache-tomcat-${tomcatVersion}"
 def architecture = "" 
 if (isWindows) {
         architecture = "-windows-x64"
-        println "Windows found"
-    } else {
-        println "UNIX found"
-        architecture = ""
-    }
-
+}
 def tomcatUrl = "http://apache.mirror.versatel.nl/tomcat/tomcat-7/v${tomcatVersion}/bin/${tomcatName}${architecture}.zip"
 def tomcatDir = "${deployDir}/tomcat"
 

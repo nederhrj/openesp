@@ -8,11 +8,26 @@ project.version = openEspVersion
 apply plugin: 'java'
 project.ext.basename = "openesp"
 
+
+ext {
+    jvm = org.gradle.internal.jvm.Jvm.current()
+    javaVersion = JavaVersion.current()
+    isWindows = org.gradle.internal.os.OperatingSystem.current().windows
+}
+
 project.ext.set("tmpDir", "${rootDir}/tmp/")
 def deployDir = "build/openesp"
 def openEspZipName = "openesp-${openEspVersion}.zip"
 def tomcatName = "apache-tomcat-${tomcatVersion}"
-def architecture = "" // "-windows-x64"
+def architecture = "" 
+if (isWindows) {
+        architecture = "-windows-x64"
+        println "Windows found"
+    } else {
+        println "UNIX found"
+        architecture = ""
+    }
+
 def tomcatUrl = "http://apache.mirror.versatel.nl/tomcat/tomcat-7/v${tomcatVersion}/bin/${tomcatName}${architecture}.zip"
 def tomcatDir = "${deployDir}/tomcat"
 
@@ -22,7 +37,13 @@ println "OpenESP version " + openEspVersion +
         ", ManifoldCF " + mcfVersion
 println "TEMP dir: " + tmpDir
 
-defaultTasks 'dist' 
+defaultTasks 'verifyBuildEnvironment', 'dist' 
+
+task verifyBuildEnvironment << {
+    assert javaVersion.java6 : "Must have a java 6 compatible JVM to perform this build. Current JVM is ${jvm}"
+    def systemCharset = java.nio.charset.Charset.defaultCharset().name()
+    //assert systemCharset == "UTF-8" : "Platform encoding must be UTF-8. Is currently $systemCharset. Set -Dfile.encoding=UTF-8."
+}
 
 task cleanTemp { 
   doLast {
